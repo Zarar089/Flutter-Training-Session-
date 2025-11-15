@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:realm/realm.dart';
 
-import '../attendance_model.dart';
+import '../data/models/reals_models/attendence/attendance_model.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({Key? key}) : super(key: key);

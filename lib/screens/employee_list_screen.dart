@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:realm/realm.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../data/models/realm_mdoels/employee_model.dart';
+import '../data/models/reals_models/employee/employee_model.dart';
 import 'employee_detail_screen.dart';
 import 'employee_add_screen.dart';
 import 'attendance_screen.dart';
@@ -66,24 +66,20 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       final snapshot = await _firebaseRef.get();
 
       if (snapshot.exists) {
-
-
-        // Cache to Realm
-        _realm.write(() {
-          _realm.deleteAll<EmployeeRealm>();
-          for (var emp in employees) {
-            _realm.add(EmployeeRealm(
-              emp['id'],
-              emp['name'],
-              emp['email'],
-              emp['position'],
-              emp['department'],
-              emp['joinDate'],
-              emp['phone'],
-              emp['salary'],
-            ));
-          }
-        });
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        employees = data.entries.map((entry) {
+          final value = entry.value as Map<dynamic, dynamic>;
+          return {
+            'id': entry.key as String,
+            'name': value['name'] as String,
+            'email': value['email'] as String,
+            'position': value['position'] as String,
+            'department': value['department'] as String,
+            'joinDate': DateTime.parse(value['joinDate'] as String),
+            'phone': value['phone'] as String,
+            'salary': (value['salary'] as num).toDouble(),
+          };
+        }).toList();
 
         // Save sync time to SharedPreferences
         final prefs = await SharedPreferences.getInstance();

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:realm/realm.dart';
 import 'package:intl/intl.dart';
-import '../data/models/realm_mdoels/employee_model.dart';
+import '../data/models/reals_models/employee/employee_model.dart';
 import 'employee_add_screen.dart';
 
 // ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
