@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "77592297438",
+    "firebase_url": "https://flutter-training-session-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "flutter-training-session",
+    "storage_bucket": "flutter-training-session.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77592297438:android:2009259422e4cac596a74f",
+        "android_client_info": {
+          "package_name": "com.example.employee_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDu1S5BBUIl5JvxCeZtbCxnB5aNSGqZ3R4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:77592297438:android:179a62e03570d77c96a74f",
+        "android_client_info": {
+          "package_name": "com.fronture_training.employee_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDu1S5BBUIl5JvxCeZtbCxnB5aNSGqZ3R4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
