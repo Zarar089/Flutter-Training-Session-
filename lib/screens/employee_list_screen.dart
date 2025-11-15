@@ -1,3 +1,4 @@
+import 'package:employee_app_v1_spaghetti/domain/use_cases/employee_usecase.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:realm/realm.dart';
@@ -18,11 +19,8 @@ class EmployeeListScreen extends StatefulWidget {
 }
 
 class _EmployeeListScreenState extends State<EmployeeListScreen> {
-  // Direct Firebase reference - no abstraction
-  final DatabaseReference _firebaseRef = FirebaseDatabase.instance.ref('employees');
 
-  // Direct Realm instance - no abstraction
-  late Realm _realm;
+  final EmployeeUseCase employeeUseCase = EmployeeUseCase();
 
   // State management with setState
   List<Map<String, dynamic>> employees = [];
@@ -34,25 +32,9 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
   @override
   void initState() {
     super.initState();
-    _initRealm();
-    _checkLastSync();
     _loadEmployees();
   }
 
-  // Initialize Realm - direct dependency
-  void _initRealm() {
-    final config = Configuration.local([EmployeeRealm.schema]);
-    _realm = Realm(config);
-  }
-
-  // Check last sync from SharedPreferences - direct dependency
-  Future<void> _checkLastSync() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastSync = prefs.getString('last_sync_employees');
-    if (lastSync != null) {
-      debugPrint('Last synced: $lastSync');
-    }
-  }
 
   // Load employees - tries Firebase first, falls back to Realm
   Future<void> _loadEmployees() async {
@@ -61,54 +43,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       errorMessage = null;
     });
 
-    try {
-      // Try Firebase first
-      final snapshot = await _firebaseRef.get();
-
-      if (snapshot.exists) {
-
-
-        // Cache to Realm
-        _realm.write(() {
-          _realm.deleteAll<EmployeeRealm>();
-          for (var emp in employees) {
-            _realm.add(EmployeeRealm(
-              emp['id'],
-              emp['name'],
-              emp['email'],
-              emp['position'],
-              emp['department'],
-              emp['joinDate'],
-              emp['phone'],
-              emp['salary'],
-            ));
-          }
-        });
-
-        // Save sync time to SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          'last_sync_employees',
-          DateTime.now().toIso8601String(),
-        );
-      }
-    } catch (e) {
-      // Fallback to Realm if Firebase fails
-      debugPrint('Firebase error: $e, loading from cache');
-      final realmData = _realm.all<EmployeeRealm>();
-      employees = realmData.map((emp) => {
-        'id': emp.id,
-        'name': emp.name,
-        'email': emp.email,
-        'position': emp.position,
-        'department': emp.department,
-        'joinDate': emp.joinDate,
-        'phone': emp.phone,
-        'salary': emp.salary,
-      }).toList();
-
-      errorMessage = 'Loaded from cache (offline)';
-    }
+    employees = await employeeUseCase.fetchEmployeeData();
 
     filteredEmployees = employees;
     setState(() => isLoading = false);
@@ -133,6 +68,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
   // Delete employee - direct Firebase and Realm access
   Future<void> _deleteEmployee(String id) async {
     try {
+      /*
       await _firebaseRef.child(id).remove();
 
       _realm.write(() {
@@ -141,6 +77,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           _realm.delete(emp);
         }
       });
+       */
 
       _loadEmployees();
 
@@ -320,7 +257,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
 
   @override
   void dispose() {
-    _realm.close();
+    //_realm.close();
     super.dispose();
   }
 }
