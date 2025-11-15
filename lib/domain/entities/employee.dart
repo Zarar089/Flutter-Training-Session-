@@ -31,4 +31,16 @@ class Employee {
       salary: (data['salary'] as num).toDouble(),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'email': email,
+      'position': position,
+      'department': department,
+      'joinDate': joinDate.toIso8601String(),
+      'phone': phone,
+      'salary': salary,
+    };
+  }
 }
