@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:realm/realm.dart';
 import 'package:intl/intl.dart';
-import '../data/models/realm_mdoels/employee_model.dart';
+import '../../data/models/realm_mdoels/employee_model.dart';
+import '../../domain/entities/employee.dart';
 import 'employee_add_screen.dart';
 
 // ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
 class EmployeeDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> employee;
+  final Employee employee;
 
   const EmployeeDetailScreen({Key? key, required this.employee}) : super(key: key);
 
@@ -36,10 +37,10 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     setState(() => isLoading = true);
 
     try {
-      await _firebaseRef.child(widget.employee['id']).remove();
+      await _firebaseRef.child(widget.employee.id).remove();
 
       _realm.write(() {
-        final emp = _realm.find<EmployeeRealm>(widget.employee['id']);
+        final emp = _realm.find<EmployeeRealm>(widget.employee.id);
         if (emp != null) {
           _realm.delete(emp);
         }
@@ -77,7 +78,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
 
   // Calculate years of service
   int _calculateYearsOfService() {
-    final joinDate = widget.employee['joinDate'] as DateTime;
+    final joinDate = widget.employee.joinDate;
     final now = DateTime.now();
     return now.year - joinDate.year;
   }
@@ -117,13 +118,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     CircleAvatar(
                       radius: 40,
                       child: Text(
-                        widget.employee['name'].toString()[0].toUpperCase(),
+                        widget.employee.name.toString()[0].toUpperCase(),
                         style: const TextStyle(fontSize: 32),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      widget.employee['name'],
+                      widget.employee.name,
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
