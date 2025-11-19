@@ -1,12 +1,12 @@
 class Employee {
-  late String id;
-  late String name;
-  late String email;
-  late String position;
-  late String department;
-  late DateTime joinDate;
-  late String phone;
-  late double salary;
+  final String id;
+  final String name;
+  final String email;
+  final String position;
+  final String department;
+  final String joinDate;
+  final String phone;
+  final int salary;
 
   Employee({
     required this.id,
@@ -19,16 +19,14 @@ class Employee {
     required this.salary,
   });
 
-  factory Employee.fromMap(String id, Map<dynamic, dynamic> data) {
-    return Employee(
-      id: id,
-      name: data['name'] as String,
-      email: data['email'] as String,
-      position: data['position'] as String,
-      department: data['department'] as String,
-      joinDate: DateTime.parse(data['joinDate'] as String),
-      phone: data['phone'] as String,
-      salary: (data['salary'] as num).toDouble(),
-    );
-  }
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'position': position,
+    'department': department,
+    'joinDate': joinDate,
+    'phone': phone,
+    'salary': salary,
+  };
 }

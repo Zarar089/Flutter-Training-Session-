@@ -1,30 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/employee_list_screen.dart';
+import 'core/di/service_locator.dart' as di;
+import 'presentation/screens/employee_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print("Init");
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  print("initialized");
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await di.init(); // ← Dependency Injection setup
   runApp(const EmployeeApp());
 }
 
 class EmployeeApp extends StatelessWidget {
   const EmployeeApp({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Employee App V1 - Spaghetti',
+      title: 'Employee App - Clean Architecture',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       home: const EmployeeListScreen(),
     );
   }

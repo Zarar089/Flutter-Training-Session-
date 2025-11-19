@@ -1,14 +1,15 @@
 import 'package:realm/realm.dart';
-part 'employee_model.realm.dart';
+part 'employee_realm.g.dart';
+
 @RealmModel()
-class $EmployeeRealm {
+class _EmployeeRealm {
   @PrimaryKey()
   late String id;
   late String name;
   late String email;
   late String position;
   late String department;
-  late DateTime joinDate;
+  late String joinDate;
   late String phone;
-  late double salary;
+  late int salary;
 }
