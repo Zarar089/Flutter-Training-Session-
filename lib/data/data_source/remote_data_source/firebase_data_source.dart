@@ -1,5 +1,3 @@
-
-import 'package:employee_app_v1_spaghetti/domain/entities/employee.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class FirebaseDataSource<T extends Object>{
