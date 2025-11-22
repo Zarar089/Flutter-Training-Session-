@@ -4,7 +4,7 @@ import 'package:realm/realm.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
-import '../data/models/realm_mdoels/employee_model.dart';
+import '../../data/models/realm_mdoels/employee_model.dart';
 
 // ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
 class EmployeeAddScreen extends StatefulWidget {
