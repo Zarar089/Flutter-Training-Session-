@@ -1,4 +1,4 @@
-import 'package:employee_app_v1_spaghetti/domain/use_cases/employee_usecase.dart';
+import 'package:employee_app_v1_spaghetti/core/di/dependency_injection.dart';
 import 'package:employee_app_v1_spaghetti/presentations/screens/blocs/employee_list/employee_list_bloc.dart';
 import 'package:employee_app_v1_spaghetti/presentations/screens/blocs/employee_list/employee_list_state.dart';
 import 'package:flutter/material.dart';
@@ -10,77 +10,50 @@ import 'blocs/employee_list/employee_list_events.dart';
 import 'employee_add_screen.dart';
 import 'employee_detail_screen.dart';
 
-// ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
-// UI + Business Logic + Data Access all mixed together
-
 class EmployeeListScreen extends StatefulWidget {
-  const EmployeeListScreen({Key? key}) : super(key: key);
+  const EmployeeListScreen({super.key});
 
   @override
   State<EmployeeListScreen> createState() => _EmployeeListScreenState();
 }
 
 class _EmployeeListScreenState extends State<EmployeeListScreen> {
-  final EmployeeUseCase employeeUseCase = EmployeeUseCase();
-  final EmployeeListBloc employeeListBloc = EmployeeListBloc();
+  late final EmployeeListBloc employeeListBloc;
 
   // State management with setState
-  List<Employee> employees = [];
   List<Employee> filteredEmployees = [];
-  bool isLoading = false;
-  String? errorMessage;
   String searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    employeeListBloc = getIt<EmployeeListBloc>();
   }
 
   // Search functionality - business logic in UI
-  void _searchEmployees(String query) {
+  void _searchEmployees(String query, List<Employee> employees) {
     setState(() {
-      /*
       searchQuery = query;
       if (query.isEmpty) {
         filteredEmployees = employees;
       } else {
         filteredEmployees = employees.where((emp) {
-          return emp['name'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['position'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['department'].toString().toLowerCase().contains(query.toLowerCase());
+          return emp.name.toLowerCase().contains(query.toLowerCase()) ||
+              emp.position.toLowerCase().contains(query.toLowerCase()) ||
+              emp.department.toLowerCase().contains(query.toLowerCase());
         }).toList();
       }
-      */
     });
   }
 
-  // Delete employee - direct Firebase and Realm access
+  // Delete employee - Using BLoC
   Future<void> _deleteEmployee(String id) async {
-    try {
-      /*
-      await _firebaseRef.child(id).remove();
+    employeeListBloc.add(EmployeeListDeleteTriggered(id));
 
-      _realm.write(() {
-        final emp = _realm.find<EmployeeRealm>(id);
-        if (emp != null) {
-          _realm.delete(emp);
-        }
-      });
-       */
-
-      _loadEmployees();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Employee deleted successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting employee: $e')),
-        );
-      }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Employee deleted successfully')),
+      );
     }
   }
 
@@ -91,7 +64,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       MaterialPageRoute(
         builder: (context) => EmployeeDetailScreen(employee: employee),
       ),
-    ).then((_) => _loadEmployees());
+    ).then((_) => employeeListBloc.add(EmployeeListFetchTriggered()));
   }
 
   // Navigate to add screen
@@ -101,7 +74,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       MaterialPageRoute(
         builder: (context) => const EmployeeAddScreen(),
       ),
-    ).then((_) => _loadEmployees());
+    ).then((_) => employeeListBloc.add(EmployeeListFetchTriggered()));
   }
 
   // Navigate to attendance screen
@@ -139,11 +112,23 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
             employeeListBloc..add(EmployeeListFetchTriggered()),
         child: BlocConsumer<EmployeeListBloc, EmployeeListState>(
           builder: (context, state) {
-            if (state is EmployeeListInitial || state is EmployeeListLoaded) {
+            List<Employee> employees = [];
+            bool isLoading = false;
+            String? errorMessage;
+
+            if (state is EmployeeListLoading) {
               isLoading = true;
             } else if (state is EmployeeListLoaded) {
-              isLoading = false;
               employees = state.employees;
+              // Update filtered employees when data is loaded and no active search
+              if (searchQuery.isEmpty) {
+                filteredEmployees = employees;
+              }
+            } else if (state is EmployeeListError) {
+              errorMessage = state.message;
+            } else if (state is NoEmployeeFound) {
+              employees = [];
+              filteredEmployees = [];
             }
 
             return Column(
@@ -159,7 +144,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onChanged: _searchEmployees,
+                    onChanged: (query) => _searchEmployees(query, employees),
                   ),
                 ),
 
@@ -172,7 +157,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                       children: [
                         const Icon(Icons.warning, color: Colors.orange),
                         const SizedBox(width: 8),
-                        Text(errorMessage!),
+                        Expanded(child: Text(errorMessage)),
                       ],
                     ),
                   ),
@@ -210,9 +195,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                                   child: ListTile(
                                     leading: CircleAvatar(
                                       child: Text(
-                                        employee.name
-                                            .toString()[0]
-                                            .toUpperCase(),
+                                        employee.name[0].toUpperCase(),
                                       ),
                                     ),
                                     title: Text(
@@ -238,7 +221,15 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               ],
             );
           },
-          listener: (context, state) {},
+          listener: (context, state) {
+            if (state is EmployeeListLoaded) {
+              if (searchQuery.isEmpty) {
+                setState(() {
+                  filteredEmployees = state.employees;
+                });
+              }
+            }
+          },
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -274,7 +265,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
 
   @override
   void dispose() {
-    //_realm.close();
+    employeeListBloc.close();
     super.dispose();
   }
 }

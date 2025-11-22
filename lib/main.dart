@@ -1,15 +1,20 @@
+import 'package:employee_app_v1_spaghetti/core/di/dependency_injection.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/employee_list_screen.dart';
+import 'presentations/screens/employee_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print("Init");
+
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  print("initialized");
+
+  // Setup Dependency Injection
+  await setupDependencyInjection();
+
   runApp(const EmployeeApp());
 }
 
