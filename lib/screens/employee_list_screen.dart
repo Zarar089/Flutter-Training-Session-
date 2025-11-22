@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:realm/realm.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../data/models/reals_models/employee/employee_model.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/employee/employee_bloc.dart';
+import '../bloc/employee/employee_event.dart';
+import '../bloc/employee/employee_state.dart';
+import '../domain/entities/employee.dart';
 import 'employee_detail_screen.dart';
 import 'employee_add_screen.dart';
 import 'attendance_screen.dart';
-
-// ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
-// UI + Business Logic + Data Access all mixed together
 
 class EmployeeListScreen extends StatefulWidget {
   const EmployeeListScreen({Key? key}) : super(key: key);
@@ -18,163 +16,46 @@ class EmployeeListScreen extends StatefulWidget {
 }
 
 class _EmployeeListScreenState extends State<EmployeeListScreen> {
-  // Direct Firebase reference - no abstraction
-  final DatabaseReference _firebaseRef = FirebaseDatabase.instance.ref('employees');
-
-  // Direct Realm instance - no abstraction
-  late Realm _realm;
-
-  // State management with setState
-  List<Map<String, dynamic>> employees = [];
-  List<Map<String, dynamic>> filteredEmployees = [];
-  bool isLoading = false;
-  String? errorMessage;
-  String searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _initRealm();
-    _checkLastSync();
-    _loadEmployees();
+    context.read<EmployeeBloc>().add(const LoadEmployees());
   }
 
-  // Initialize Realm - direct dependency
-  void _initRealm() {
-    final config = Configuration.local([EmployeeRealm.schema]);
-    _realm = Realm(config);
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  // Check last sync from SharedPreferences - direct dependency
-  Future<void> _checkLastSync() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastSync = prefs.getString('last_sync_employees');
-    if (lastSync != null) {
-      debugPrint('Last synced: $lastSync');
-    }
-  }
-
-  // Load employees - tries Firebase first, falls back to Realm
-  Future<void> _loadEmployees() async {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-
-    try {
-      // Try Firebase first
-      final snapshot = await _firebaseRef.get();
-
-      if (snapshot.exists) {
-        final data = snapshot.value as Map<dynamic, dynamic>;
-        employees = data.entries.map((entry) {
-          final value = entry.value as Map<dynamic, dynamic>;
-          return {
-            'id': entry.key as String,
-            'name': value['name'] as String,
-            'email': value['email'] as String,
-            'position': value['position'] as String,
-            'department': value['department'] as String,
-            'joinDate': DateTime.parse(value['joinDate'] as String),
-            'phone': value['phone'] as String,
-            'salary': (value['salary'] as num).toDouble(),
-          };
-        }).toList();
-
-        // Save sync time to SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          'last_sync_employees',
-          DateTime.now().toIso8601String(),
-        );
-      }
-    } catch (e) {
-      // Fallback to Realm if Firebase fails
-      debugPrint('Firebase error: $e, loading from cache');
-      final realmData = _realm.all<EmployeeRealm>();
-      employees = realmData.map((emp) => {
-        'id': emp.id,
-        'name': emp.name,
-        'email': emp.email,
-        'position': emp.position,
-        'department': emp.department,
-        'joinDate': emp.joinDate,
-        'phone': emp.phone,
-        'salary': emp.salary,
-      }).toList();
-
-      errorMessage = 'Loaded from cache (offline)';
-    }
-
-    filteredEmployees = employees;
-    setState(() => isLoading = false);
-  }
-
-  // Search functionality - business logic in UI
   void _searchEmployees(String query) {
-    setState(() {
-      searchQuery = query;
-      if (query.isEmpty) {
-        filteredEmployees = employees;
-      } else {
-        filteredEmployees = employees.where((emp) {
-          return emp['name'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['position'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['department'].toString().toLowerCase().contains(query.toLowerCase());
-        }).toList();
-      }
-    });
+    context.read<EmployeeBloc>().add(SearchEmployees(query));
   }
 
-  // Delete employee - direct Firebase and Realm access
-  Future<void> _deleteEmployee(String id) async {
-    try {
-      await _firebaseRef.child(id).remove();
-
-      _realm.write(() {
-        final emp = _realm.find<EmployeeRealm>(id);
-        if (emp != null) {
-          _realm.delete(emp);
-        }
-      });
-
-      _loadEmployees();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Employee deleted successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting employee: $e')),
-        );
-      }
-    }
-  }
-
-  // Navigate to detail screen
-  void _navigateToDetail(Map<String, dynamic> employee) {
+  void _navigateToDetail(Employee employee) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EmployeeDetailScreen(employee: employee),
       ),
-    ).then((_) => _loadEmployees());
+    ).then((_) {
+      context.read<EmployeeBloc>().add(const LoadEmployees());
+    });
   }
 
-  // Navigate to add screen
   void _navigateToAdd() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const EmployeeAddScreen(),
       ),
-    ).then((_) => _loadEmployees());
+    ).then((_) {
+      context.read<EmployeeBloc>().add(const LoadEmployees());
+    });
   }
 
-  // Navigate to attendance screen
   void _navigateToAttendance() {
     Navigator.push(
       context,
@@ -197,7 +78,9 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadEmployees,
+            onPressed: () {
+              context.read<EmployeeBloc>().add(const RefreshEmployees());
+            },
             tooltip: 'Refresh',
           ),
         ],
@@ -208,6 +91,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
+              controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search employees...',
                 prefixIcon: const Icon(Icons.search),
@@ -219,64 +103,101 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
             ),
           ),
 
-          // Error message banner
-          if (errorMessage != null)
-            Container(
-              padding: const EdgeInsets.all(8),
-              color: Colors.orange.shade100,
-              child: Row(
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Text(errorMessage!),
-                ],
-              ),
-            ),
-
-          // Employee list
+          // BlocBuilder for employee list
           Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filteredEmployees.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text(
-                    searchQuery.isEmpty ? 'No employees found' : 'No matching employees',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            )
-                : ListView.builder(
-              itemCount: filteredEmployees.length,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemBuilder: (context, index) {
-                final employee = filteredEmployees[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text(
-                        employee['name'].toString()[0].toUpperCase(),
+            child: BlocConsumer<EmployeeBloc, EmployeeState>(
+              listener: (context, state) {
+                if (state is EmployeeError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(state.message)),
+                  );
+                } else if (state is EmployeeOperationSuccess) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(state.message)),
+                  );
+                }
+              },
+              builder: (context, state) {
+                if (state is EmployeeLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (state is EmployeeError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                        const SizedBox(height: 16),
+                        Text(
+                          state.message,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.read<EmployeeBloc>().add(const LoadEmployees());
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (state is EmployeeLoaded) {
+                  final employees = state.employees;
+                  final searchQuery = state.searchQuery ?? '';
+
+                  if (employees.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.people_outline, size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            searchQuery.isEmpty ? 'No employees found' : 'No matching employees',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
                       ),
-                    ),
-                    title: Text(
-                      employee['name'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '${employee['position']} - ${employee['department']}',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _showDeleteDialog(employee['id']),
-                    ),
-                    onTap: () => _navigateToDetail(employee),
-                  ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: employees.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (context, index) {
+                      final employee = employees[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              employee.name[0].toUpperCase(),
+                            ),
+                          ),
+                          title: Text(
+                            employee.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            '${employee.position} - ${employee.department}',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _showDeleteDialog(employee.id),
+                          ),
+                          onTap: () => _navigateToDetail(employee),
+                        ),
+                      );
+                    },
+                  );
+                }
+
+                return const Center(
+                  child: Text('No data available'),
                 );
               },
             ),
@@ -304,7 +225,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _deleteEmployee(id);
+              context.read<EmployeeBloc>().add(DeleteEmployee(id));
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
@@ -312,11 +233,5 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _realm.close();
-    super.dispose();
   }
 }
