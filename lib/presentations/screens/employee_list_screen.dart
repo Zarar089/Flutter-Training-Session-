@@ -14,97 +14,55 @@ import 'employee_detail_screen.dart';
 // UI + Business Logic + Data Access all mixed together
 
 class EmployeeListScreen extends StatefulWidget {
-  const EmployeeListScreen({Key? key}) : super(key: key);
+  const EmployeeListScreen({super.key});
 
   @override
   State<EmployeeListScreen> createState() => _EmployeeListScreenState();
 }
 
 class _EmployeeListScreenState extends State<EmployeeListScreen> {
-  final EmployeeUseCase employeeUseCase = EmployeeUseCase();
-  final EmployeeListBloc employeeListBloc = EmployeeListBloc();
-
-  // State management with setState
-  List<Employee> employees = [];
-  List<Employee> filteredEmployees = [];
-  bool isLoading = false;
-  String? errorMessage;
   String searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    // no direct data access here - bloc will fetch
   }
 
-  // Search functionality - business logic in UI
   void _searchEmployees(String query) {
     setState(() {
-      /*
       searchQuery = query;
-      if (query.isEmpty) {
-        filteredEmployees = employees;
-      } else {
-        filteredEmployees = employees.where((emp) {
-          return emp['name'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['position'].toString().toLowerCase().contains(query.toLowerCase()) ||
-              emp['department'].toString().toLowerCase().contains(query.toLowerCase());
-        }).toList();
-      }
-      */
     });
   }
 
-  // Delete employee - direct Firebase and Realm access
-  Future<void> _deleteEmployee(String id) async {
-    try {
-      /*
-      await _firebaseRef.child(id).remove();
-
-      _realm.write(() {
-        final emp = _realm.find<EmployeeRealm>(id);
-        if (emp != null) {
-          _realm.delete(emp);
-        }
-      });
-       */
-
-      _loadEmployees();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Employee deleted successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting employee: $e')),
-        );
-      }
-    }
-  }
-
-  // Navigate to detail screen
-  void _navigateToDetail(Employee employee) {
-    Navigator.push(
+  void _navigateToDetail(Employee employee) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EmployeeDetailScreen(employee: employee),
       ),
-    ).then((_) => _loadEmployees());
+    );
+
+    // If detail screen signals deletion, trigger refresh
+    if (!mounted) return;
+    if (result == true) {
+      context.read<EmployeeListBloc>().add(EmployeeListFetchTriggered());
+    }
   }
 
-  // Navigate to add screen
   void _navigateToAdd() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const EmployeeAddScreen(),
       ),
-    ).then((_) => _loadEmployees());
+    ).then((_) {
+      if (mounted) {
+        context.read<EmployeeListBloc>().add(EmployeeListFetchTriggered());
+      }
+    });
   }
 
-  // Navigate to attendance screen
   void _navigateToAttendance() {
     Navigator.push(
       context,
@@ -116,35 +74,54 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Employees'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.access_time),
-            onPressed: _navigateToAttendance,
-            tooltip: 'Attendance',
+    return BlocProvider<EmployeeListBloc>(
+      create: (context) =>
+          EmployeeListBloc(employeeUseCase: EmployeeUseCase())
+            ..add(EmployeeListFetchTriggered()),
+      child: Builder(
+        builder: (blocContext) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Employees'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.access_time),
+                onPressed: _navigateToAttendance,
+                tooltip: 'Attendance',
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () {
+                  blocContext
+                      .read<EmployeeListBloc>()
+                      .add(EmployeeListFetchTriggered());
+                },
+                tooltip: 'Refresh',
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              employeeListBloc.add(EmployeeListFetchTriggered());
+          body: BlocConsumer<EmployeeListBloc, EmployeeListState>(
+            listener: (context, state) {
+              if (state is EmployeeListError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text(state.message)),
+                );
+              }
             },
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: BlocProvider<EmployeeListBloc>(
-        create: (context) =>
-            employeeListBloc..add(EmployeeListFetchTriggered()),
-        child: BlocConsumer<EmployeeListBloc, EmployeeListState>(
-          builder: (context, state) {
-            if (state is EmployeeListInitial || state is EmployeeListLoaded) {
-              isLoading = true;
-            } else if (state is EmployeeListLoaded) {
-              isLoading = false;
-              employees = state.employees;
-            }
+            builder: (context, state) {
+            final isLoading = state is EmployeeListInitial;
+            final employees =
+                state is EmployeeListLoaded ? state.employees : <Employee>[];
+
+            // compute filteredEmployees from current state + searchQuery
+            final filteredEmployees = searchQuery.isEmpty
+                ? employees
+                : employees.where((emp) {
+                    final q = searchQuery.toLowerCase();
+                    return emp.name.toLowerCase().contains(q) ||
+                        emp.position.toLowerCase().contains(q) ||
+                        emp.department.toLowerCase().contains(q);
+                  }).toList();
 
             return Column(
               children: [
@@ -163,21 +140,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                   ),
                 ),
 
-                // Error message banner
-                if (errorMessage != null)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    color: Colors.orange.shade100,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning, color: Colors.orange),
-                        const SizedBox(width: 8),
-                        Text(errorMessage!),
-                      ],
-                    ),
-                  ),
-
-                // Employee list
+                // Employee list / states
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -221,13 +184,12 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                                           fontWeight: FontWeight.bold),
                                     ),
                                     subtitle: Text(
-                                      '${employee.position} - ${employee.department}',
-                                    ),
+                                        '${employee.position} - ${employee.department}'),
                                     trailing: IconButton(
                                       icon: const Icon(Icons.delete,
                                           color: Colors.red),
                                       onPressed: () =>
-                                          _showDeleteDialog(employee.id),
+                                          _showDeleteDialog(blocContext, employee.id),
                                     ),
                                     onTap: () => _navigateToDetail(employee),
                                   ),
@@ -238,31 +200,35 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               ],
             );
           },
-          listener: (context, state) {},
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAdd,
-        child: const Icon(Icons.add),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _navigateToAdd,
+            child: const Icon(Icons.add),
+          ),
+        ),
       ),
     );
   }
 
-  void _showDeleteDialog(String id) {
+  void _showDeleteDialog(BuildContext context, String id) {
+    // Capture the bloc reference before showing the dialog
+    final bloc = context.read<EmployeeListBloc>();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Employee'),
         content: const Text('Are you sure you want to delete this employee?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              _deleteEmployee(id);
+              Navigator.pop(dialogContext);
+              // Dispatch fetch to refresh after deletion. Ideally you'd dispatch a Delete event to the bloc that calls the use case.
+              // For now, we assume deletion happens elsewhere (detail/edit) and we refresh list.
+              bloc.add(EmployeeListFetchTriggered());
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
@@ -274,7 +240,6 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
 
   @override
   void dispose() {
-    //_realm.close();
     super.dispose();
   }
 }

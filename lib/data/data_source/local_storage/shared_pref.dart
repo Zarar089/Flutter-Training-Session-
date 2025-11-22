@@ -5,8 +5,9 @@ class SharedPreferencesHelper{
 
   late SharedPreferences _sharedPreferences;
 
-  create() async{
+  Future<SharedPreferencesHelper> create() async{
     _sharedPreferences = await SharedPreferences.getInstance();
+    return this;
   }
 
   Future<void> setDouble(String key,double value) async {
