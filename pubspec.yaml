@@ -1,6 +1,7 @@
-name: employee_app_v1_spaghetti
-description: Employee Management App - V1 Spaghetti Code Example
-version: 1.0.0+1
+name: employee_app
+description: Employee Management App with Clean Architecture
+publish_to: 'none'
+version: 2.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -17,6 +18,16 @@ dependencies:
   realm: ^20.2.0
   shared_preferences: ^2.5.3
 
+  # State Management
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+
+  # Dependency Injection
+  get_it: ^9.0.5
+
+  # Functional Programming
+  dartz: ^0.10.1
+
   # Utilities
   intl: ^0.20.2
 
@@ -25,6 +36,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.4.15
+  realm_generator: ^20.2.0
 
 flutter:
   uses-material-design: true
