@@ -15,14 +15,21 @@ class RealmDataSource<T extends RealmObject>{
 
   void insert(T obj){
     realm.write(() {
-      realm.add(obj,update: true);
+      realm.add<T>(obj,update: true);
     },);
   }
 
   void delete(T obj){
     realm.write(() {
-      realm.delete(obj);
+      realm.delete<T>(obj);
     },);
   }
+
+  void deleteAll(){
+    realm.write(() {
+      realm.deleteAll<T>();
+    },);
+  }
+
 
 }

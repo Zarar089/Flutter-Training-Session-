@@ -1,12 +1,13 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:realm/realm.dart';
 
-import '../attendance_model.dart';
+import '../../attendance_model.dart';
 
 class AttendanceScreen extends StatefulWidget {
-  const AttendanceScreen({Key? key}) : super(key: key);
+  const AttendanceScreen({super.key});
 
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -17,7 +18,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       FirebaseDatabase.instance.ref('attendance');
   final DatabaseReference _employeesRef =
       FirebaseDatabase.instance.ref('employees');
-  late Realm _realm;
+  Realm? _realm;
 
   List<Map<String, dynamic>> attendanceRecords = [];
   List<Map<String, dynamic>> employees = [];
@@ -34,8 +35,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _initRealm() {
-    final config = Configuration.local([Attendance.schema]);
-    _realm = Realm(config);
+    // Realm doesn't support web, so only initialize on non-web platforms
+    if (!kIsWeb) {
+      try {
+        final config = Configuration.local([Attendance.schema]);
+        _realm = Realm(config);
+      } catch (e) {
+        debugPrint('Realm initialization failed: $e');
+      }
+    }
   }
 
   Future<void> _loadEmployees() async {
@@ -87,38 +95,51 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         // Sort by date descending
         attendanceRecords.sort((a, b) => b['date'].compareTo(a['date']));
 
-        // Cache to Realm
-        _realm.write(() {
-          _realm.deleteAll<Attendance>();
-          for (var record in attendanceRecords) {
-            _realm.add(Attendance(
-              record['id'],
-              record['employeeId'],
-              record['employeeName'],
-              record['date'],
-              record['checkInTime'],
-              record['totalHours'],
-              record['status'],
-              checkOutTime: record['checkOutTime'],
-            ));
-          }
-        });
+        // Cache to Realm (if available, not on web)
+        if (_realm != null) {
+          _realm!.write(() {
+            _realm!.deleteAll<Attendance>();
+            for (var record in attendanceRecords) {
+              _realm!.add(Attendance(
+                record['id'],
+                record['employeeId'],
+                record['employeeName'],
+                record['date'],
+                record['checkInTime'],
+                record['totalHours'],
+                record['status'],
+                checkOutTime: record['checkOutTime'],
+              ));
+            }
+          });
+        }
       }
     } catch (e) {
       debugPrint('Firebase error: $e, loading from cache');
-      final realmData = _realm.all<Attendance>();
-      attendanceRecords = realmData
-          .map((record) => {
-                'id': record.id,
-                'employeeId': record.employeeId,
-                'employeeName': record.employeeName,
-                'date': record.date,
-                'checkInTime': record.checkInTime,
-                'checkOutTime': record.checkOutTime,
-                'totalHours': record.totalHours,
-                'status': record.status,
-              })
-          .toList();
+      // Try to load from Realm cache if available
+      if (_realm != null) {
+        try {
+          final realmData = _realm!.all<Attendance>();
+          attendanceRecords = realmData
+              .map((record) => {
+                    'id': record.id,
+                    'employeeId': record.employeeId,
+                    'employeeName': record.employeeName,
+                    'date': record.date,
+                    'checkInTime': record.checkInTime,
+                    'checkOutTime': record.checkOutTime,
+                    'totalHours': record.totalHours,
+                    'status': record.status,
+                  })
+              .toList();
+        } catch (realmError) {
+          debugPrint('Error loading from Realm: $realmError');
+          attendanceRecords = [];
+        }
+      } else {
+        // On web or if Realm is not available, keep empty list
+        attendanceRecords = [];
+      }
     }
 
     setState(() => isLoading = false);
@@ -139,6 +160,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
 
     if (existingRecord.isNotEmpty && existingRecord['checkOutTime'] == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Already checked in today')),
       );
@@ -158,26 +180,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       await _attendanceRef.child(attendanceId).set(attendanceData);
 
-      _realm.write(() {
-        _realm.add(
-            Attendance(
-              attendanceId,
-              selectedEmployeeId!,
-              employee['name'],
-              now,
-              now,
-              0.0,
-              'present',
-            ),
-            update: true);
-      });
+      // Save to Realm (if available, not on web)
+      if (_realm != null) {
+        _realm!.write(() {
+          _realm!.add(
+              Attendance(
+                attendanceId,
+                selectedEmployeeId!,
+                employee['name'],
+                now,
+                now,
+                0.0,
+                'present',
+              ),
+              update: true);
+        });
+      }
 
       _loadAttendance();
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Checked in successfully')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -197,6 +224,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
 
     if (existingRecord.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please check in first')),
       );
@@ -204,6 +232,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     if (existingRecord['checkOutTime'] != null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Already checked out today')),
       );
@@ -222,12 +251,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       _loadAttendance();
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(
                 'Checked out - Total: ${totalHours.toStringAsFixed(2)} hours')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -273,7 +304,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             child: Column(
               children: [
                 DropdownButtonFormField<String>(
-                  value: selectedEmployeeId,
+                  initialValue: selectedEmployeeId,
                   decoration: const InputDecoration(
                     labelText: 'Select Employee',
                     border: OutlineInputBorder(),
@@ -430,7 +461,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   void dispose() {
-    _realm.close();
+    _realm?.close();
     super.dispose();
   }
 }
