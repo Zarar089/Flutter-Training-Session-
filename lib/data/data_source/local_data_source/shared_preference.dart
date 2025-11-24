@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SharedPreferencesLocal<T> {
@@ -10,7 +11,7 @@ class SharedPreferencesLocal<T> {
     final prefs = await SharedPreferences.getInstance();
     final lastSync = prefs.getString('last_sync_employees');
     if (lastSync != null) {
-      print('Last synced: $lastSync');
+      debugPrint('Last synced: $lastSync');
     }
   }
 

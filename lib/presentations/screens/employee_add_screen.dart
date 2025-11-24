@@ -1,16 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:realm/realm.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
-import '../data/models/realm_mdoels/employee_model.dart';
+import '../../data/models/realm_mdoels/employee_model.dart';
 
 // ⚠️ SPAGHETTI CODE - ALL LOGIC IN ONE FILE
 class EmployeeAddScreen extends StatefulWidget {
   final Map<String, dynamic>? employee;
 
-  const EmployeeAddScreen({Key? key, this.employee}) : super(key: key);
+  const EmployeeAddScreen({super.key, this.employee});
 
   @override
   State<EmployeeAddScreen> createState() => _EmployeeAddScreenState();
@@ -18,7 +19,7 @@ class EmployeeAddScreen extends StatefulWidget {
 
 class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
   final DatabaseReference _firebaseRef = FirebaseDatabase.instance.ref('employees');
-  late Realm _realm;
+  Realm? _realm;
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -53,8 +54,15 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
   }
 
   void _initRealm() {
-    final config = Configuration.local([EmployeeRealm.schema]);
-    _realm = Realm(config);
+    // Realm doesn't support web, so only initialize on non-web platforms
+    if (!kIsWeb) {
+      try {
+        final config = Configuration.local([EmployeeRealm.schema]);
+        _realm = Realm(config);
+      } catch (e) {
+        debugPrint('Realm initialization failed: $e');
+      }
+    }
   }
 
   // Load draft from SharedPreferences
@@ -87,6 +95,7 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
 
     setState(() => _isDraftSaved = true);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Draft saved')),
     );
@@ -137,22 +146,24 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
       // Save to Firebase
       await _firebaseRef.child(employeeId).set(employeeData);
 
-      // Save to Realm
-      _realm.write(() {
-        _realm.add(
-          EmployeeRealm(
-            employeeId,
-            _nameController.text,
-            _emailController.text,
-            _positionController.text,
-            _selectedDepartment,
-            _joinDate,
-            _phoneController.text,
-            double.parse(_salaryController.text),
-          ),
-          update: true,
-        );
-      });
+      // Save to Realm (if available, not on web)
+      if (_realm != null) {
+        _realm!.write(() {
+          _realm!.add(
+            EmployeeRealm(
+              employeeId,
+              _nameController.text,
+              _emailController.text,
+              _positionController.text,
+              _selectedDepartment,
+              _joinDate,
+              _phoneController.text,
+              double.parse(_salaryController.text),
+            ),
+            update: true,
+          );
+        });
+      }
 
       // Clear draft if adding new employee
       if (widget.employee == null) {
@@ -185,6 +196,7 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
       lastDate: DateTime.now(),
     );
 
+    if (!mounted) return;
     if (picked != null) {
       setState(() => _joinDate = picked);
     }
@@ -296,7 +308,7 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: _selectedDepartment,
+              initialValue: _selectedDepartment,
               decoration: const InputDecoration(
                 labelText: 'Department',
                 border: OutlineInputBorder(),
@@ -385,7 +397,7 @@ class _EmployeeAddScreenState extends State<EmployeeAddScreen> {
     _positionController.dispose();
     _phoneController.dispose();
     _salaryController.dispose();
-    _realm.close();
+    _realm?.close();
     super.dispose();
   }
 }
